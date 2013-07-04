@@ -10,9 +10,9 @@ from itertools import combinations
 import numpy as np
 import pandas as pd
 
-SEED = 25
+SEED = 26
 
-def group_data(data, degree=3, hash=hash):
+def group_data(data, degree=4, hash=hash):
     """ 
     numpy.array -> numpy.array
     
@@ -87,18 +87,21 @@ def main(train='train.csv', test='test.csv', submit='logistic_pred.csv'):
     print "Transforming data..."
     dp = group_data(all_data, degree=2) 
     dt = group_data(all_data, degree=3)
+    dc = group_data(all_data, degree=4)
 
     y = array(train_data.ACTION)
     X = all_data[:num_train]
     X_2 = dp[:num_train]
     X_3 = dt[:num_train]
+    X_4 = dc[:num_train]
 
     X_test = all_data[num_train:]
     X_test_2 = dp[num_train:]
     X_test_3 = dt[num_train:]
+    X_test_4 = dc[num_train:]
 
-    X_train_all = np.hstack((X, X_2, X_3))
-    X_test_all = np.hstack((X_test, X_test_2, X_test_3))
+    X_train_all = np.hstack((X, X_2, X_3, X_4))
+    X_test_all = np.hstack((X_test, X_test_2, X_test_3, X_test_4))
     num_features = X_train_all.shape[1]
     
     model = linear_model.LogisticRegression()
@@ -135,6 +138,7 @@ def main(train='train.csv', test='test.csv', submit='logistic_pred.csv'):
     score_hist = []
     Xt = sparse.hstack([Xts[j] for j in good_features]).tocsr()
     Cvals = np.logspace(-4, 4, 15, base=2)
+
     for C in Cvals:
         model.C = C
         score = cv_loop(Xt, y, model, N)
@@ -161,4 +165,3 @@ if __name__ == "__main__":
              'test':   'data/test.csv',
              'submit': 'logistic_regression_pred.csv' }
     main(**args)
-    ##
