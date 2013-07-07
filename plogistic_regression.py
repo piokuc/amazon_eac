@@ -1,16 +1,13 @@
-__author__ = 'Miroslaw Horbal'
-__email__ = 'miroslaw@gmail.com'
-__date__ = '14-06-2013'
-
 from numpy import array, hstack
 from sklearn import metrics, cross_validation, linear_model
+import sklearn.ensemble #.RandomForestClassifier
 from scipy import sparse
 from itertools import combinations
 
 import numpy as np
 import pandas as pd
 
-SEED = 1234
+SEED = 12345
 
 def group_data(data, degree=4, hash=hash):
     """ 
@@ -61,19 +58,13 @@ def create_test_submission(filename, prediction):
     f.close()
     print 'Saved'
 
-# This loop essentially from Paul's starter code
-def cv_loop(X, y, model, N):
-    mean_auc = 0.
-    for i in range(N):
-        X_train, X_cv, y_train, y_cv = cross_validation.train_test_split(
-                                       X, y, test_size=.20, 
-                                       random_state = i*SEED)
-        model.fit(X_train, y_train)
-        preds = model.predict_proba(X_cv)[:,1]
-        auc = metrics.auc_score(y_cv, preds)
-        print "AUC (fold %d/%d): %f" % (i + 1, N, auc)
-        mean_auc += auc
-    return mean_auc/N
+def cv_loop(X, y, model, N, N_JOBS = 4):
+    scores = cross_validation.cross_val_score(model, X, y,
+            scoring='roc_auc', #score_func = metrics.auc_score,
+            pre_dispatch = N_JOBS,
+            n_jobs = N_JOBS,
+            cv = cross_validation.StratifiedShuffleSplit(y, random_state=SEED, n_iter=N))
+    return sum(scores) / N
     
 def main(train='train.csv', test='test.csv', submit='logistic_pred.csv'):    
     print "Reading dataset..."
@@ -88,23 +79,28 @@ def main(train='train.csv', test='test.csv', submit='logistic_pred.csv'):
     dp = group_data(all_data, degree=2) 
     dt = group_data(all_data, degree=3)
     dc = group_data(all_data, degree=4)
+    #d5 = group_data(all_data, degree=5)
 
     y = array(train_data.ACTION)
     X = all_data[:num_train]
     X_2 = dp[:num_train]
     X_3 = dt[:num_train]
     X_4 = dc[:num_train]
+    #X_5 = d5[:num_train]
 
     X_test = all_data[num_train:]
     X_test_2 = dp[num_train:]
     X_test_3 = dt[num_train:]
     X_test_4 = dc[num_train:]
+    #X_test_5 = d5[num_train:]
 
-    X_train_all = np.hstack((X, X_2, X_3, X_4))
-    X_test_all = np.hstack((X_test, X_test_2, X_test_3, X_test_4))
+    X_train_all = np.hstack((X, X_2, X_3, X_4))#, X_5))
+    X_test_all = np.hstack((X_test, X_test_2, X_test_3, X_test_4))#, X_test_5))
     num_features = X_train_all.shape[1]
-    
+   
+    #model = sklearn.ensemble.RandomForestClassifier(n_estimators=100) 
     model = linear_model.LogisticRegression()
+    model.predict = lambda M, x: M.predict_proba(x)[:,1]
     
     # Xts holds one hot encodings for each individual feature in memory
     # speeding up feature selection 
@@ -112,7 +108,7 @@ def main(train='train.csv', test='test.csv', submit='logistic_pred.csv'):
     
     print "Performing greedy feature selection..."
     score_hist = []
-    N = 15
+    N = 20
     good_features = set([])
     # Greedy feature selection loop
     while len(score_hist) < 2 or score_hist[-1][0] > score_hist[-2][0]:
@@ -123,7 +119,9 @@ def main(train='train.csv', test='test.csv', submit='logistic_pred.csv'):
                 Xt = sparse.hstack([Xts[j] for j in feats]).tocsr()
                 score = cv_loop(Xt, y, model, N)
                 scores.append((score, f))
-                print "Feature: %i Mean AUC: %f" % (f, score)
+                #print "Feature: %i Mean AUC: %f" % (f, score)
+                print ("%f " % score),
+        print
         good_features.add(sorted(scores)[-1][1])
         score_hist.append(sorted(scores)[-1])
         print "Current features: %s" % sorted(list(good_features))
