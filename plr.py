@@ -11,6 +11,11 @@ import pandas as pd
 import collections
 import sys, traceback
 
+def log_exception(*s):
+    with open('resources/exceptions.txt','a') as f:
+        f.write('\n' + ' '.join(s) + '\n')
+        traceback.print_exc(file=f)
+
 def group_data(data, degree=4, hash=hash):
     """ 
     numpy.array -> numpy.array
@@ -51,12 +56,12 @@ def OneHotEncoder(data, keymap=None):
      outdat = sparse.hstack(outdat).tocsr()
      return outdat, keymap
 
-def cv_loop(X, y, model, N, N_JOBS = 2, SEED=25):
+def cv_loop(X, y, model, N, N_JOBS = 4, seed=25):
     scores = cross_validation.cross_val_score(model, X, y,
             scoring='roc_auc', #score_func = metrics.auc_score,
             pre_dispatch = N_JOBS,
             n_jobs = N_JOBS,
-            cv = cross_validation.StratifiedShuffleSplit(y, random_state=SEED, n_iter=N))
+            cv = cross_validation.StratifiedShuffleSplit(y, random_state=seed, n_iter=N))
     return sum(scores) / N
     
 def loadData(train='train.csv', test='test.csv', resource=None):
@@ -99,7 +104,7 @@ def loadData(train='train.csv', test='test.csv', resource=None):
     return X_train_all, y, X_test_all, X_test, num_features, num_train, ids
 
 
-def greedySelection(Xts=None, y=None, model=None, N=None, SEED=None):
+def greedySelection(Xts=None, y=None, model=None, N=None, seed=None):
     #return [0, 7, 8, 9, 10, 11, 20, 36, 37, 41, 42, 47, 51, 53, 63, 64, 67, 69, 71, 81, 85, 88]
 
     print "Performing greedy feature selection..."
@@ -112,7 +117,7 @@ def greedySelection(Xts=None, y=None, model=None, N=None, SEED=None):
             if f not in good_features:
                 feats = list(good_features) + [f]
                 Xt = sparse.hstack([Xts[j] for j in feats]).tocsr()
-                score = cv_loop(Xt, y, model, N, SEED=SEED)
+                score = cv_loop(Xt, y, model, N, seed=seed)
                 scores.append((score, f))
                 #print "Feature: %i Mean AUC: %f" % (f, score)
                 print ("%f " % score),
@@ -145,13 +150,12 @@ def optimizeHyperparameter(model=None, Xts = None, y = None, N = None, features 
     bestScore = 1.0 - fopt
     return bestC, bestScore
 
-def saveScore(submissionFile, stats):
-    with open('resources/scores.txt', 'a') as f:
+def saveScore(submissionFile, stats, logFile='resources/scores.txt'):
+    with open(logFile, 'a') as f:
         stats = ' '.join(str(k)+'='+str(v) for k,v in stats.items())
         f.write('%s %s\n' % (submissionFile, stats))
  
-def logistic_regression(SEED=25, features=None, data=None, resource=None):
-    print 'logistic_regression', features, 
+def logistic_regression(seed=25, features=None, data=None, N=20, C=None):
     model = linear_model.LogisticRegression()
     model.predict = lambda M, x: M.predict_proba(x)[:,1]
     
@@ -160,41 +164,26 @@ def logistic_regression(SEED=25, features=None, data=None, resource=None):
     # speeding up feature selection 
     Xts = [OneHotEncoder(X_train_all[:,[i]])[0] for i in range(num_features)]
 
-    try:
-        N = 10
-        good_features = features or greedySelection(Xts=Xts, y = y, model = model, N = N, SEED = SEED)
-        print "Selected features %s" % good_features
+    good_features = features or greedySelection(Xts=Xts, y = y, model = model, N = N, seed = seed)
+    print "Selected features %s" % good_features
 
-        bestC, bestScore = optimizeHyperparameter(model=model, Xts = Xts, y = y, N = N, features = good_features)
-        stats = dict(C=bestC, AUC=bestScore, features=repr(good_features), resource=repr(resource) or '')
+    score = None
+    if C is None:
+        C, score = optimizeHyperparameter(model = model, Xts = Xts, y = y, N = N, features = good_features)
+    stats = dict(C=C, AUC=score, features=repr(good_features))
 
-        print "Performing One Hot Encoding on entire dataset..."
-        Xt = np.vstack((X_train_all[:,good_features], X_test_all[:,good_features]))
-        Xt, keymap = OneHotEncoder(Xt)
+    print "Performing One Hot Encoding on entire dataset..."
+    Xt = np.vstack((X_train_all[:,good_features], X_test_all[:,good_features]))
+    Xt, keymap = OneHotEncoder(Xt)
     
-        X_train = Xt[:num_train]
-        X_test = Xt[num_train:]
-        print "Training full model..."
-        model.fit(X_train, y)
+    X_train = Xt[:num_train]
+    X_test = Xt[num_train:]
+    print "Training full model..."
+    model.fit(X_train, y)
     
-        print "Making prediction and saving results..."
-        preds = model.predict_proba(X_test)[:,1]
-        return ids, preds, "logistic_regression", stats
-    except: log_exception()
-    try:
-        model = sklearn.ensemble.RandomForestClassifier(n_estimators=100)
-        model.predict = lambda M, x: M.predict_proba(x)[:,1]
-        model.fit(X_train, y)
-        preds = model.predict_proba(X_test)[:,1]
-        stats = {}
-        return ids, preds, "random_forest", stats
-    except: log_exception()
-    return None, None, None, None
-
-def log_exception(*s):
-    with open('resources/exceptions.txt','a') as f:
-        f.write('\n' + ' '.join(s) + '\n')
-        traceback.print_exc(file=f)
+    print "Making prediction and saving results..."
+    preds = model.predict_proba(X_test)[:,1]
+    return ids, preds, "logistic_regression", stats
 
 def create_test_submission(filename, prediction, ids):
     content = ['id,ACTION']
@@ -205,39 +194,17 @@ def create_test_submission(filename, prediction, ids):
         f.write('\n'.join(content))
     print 'Saved'
 
+def everything(train='data/train.csv', test='data/test.csv', seed = 41, N = 10, data = None):
+    ids, preds, algorithmName, stats = logistic_regression(seed=seed, data=data, N=N)
+    submissionFile = 'logistic_regression_N=%d_%s_4th.csv' % (N, seed)
+    create_test_submission(submissionFile, preds, ids)
+    saveScore(submissionFile, stats, logFile='scores_optimized.txt')
 
-def analyseData(resource=None, data=None):
-    X_train_all, y, X_test_all, X_test, num_features, num_train, ids = data
-    print y.shape
-    print 'Resource', r, 'has',len(y),'samples'
-    def countValues(ys, v): return len([y for y in ys if y==v])
-    if countValues(y, 0) < 2 or countValues(y, 1) < 2:
-        print 'Skip resource', resource, "as it's least populated class in y has only 1 value"
-        def foo(**kwargs):
-            print 'dummy predictor'
-            return None, None, None, None
-        return foo
-    return logistic_regression
+def checkSeeds(begin, end, train='data/train.csv', test='data/test.csv', N = 10):
+    data = loadData(train = train, test = test)
+    #for seed in range(43,55):
+    for seed in range(begin,end):
+        everything(train = train, test = test, seed = seed, data = data, N = N)
 
 if __name__ == "__main__":
-    train='data/train.csv'
-    test='data/test.csv'
-    resources = pd.read_csv(test).RESOURCE
-    counter = collections.Counter()
-    for r in resources:
-        counter[r] += 1
-    res = counter.items()
-    res.sort(key=lambda t: t[1], reverse=True)
-    i = 0
-    for r,count in res:
-        print i,': resource=',r,', count=', count
-        i += 1
-
-        data = loadData(train = train, test = test, resource = r)
-        predictor = analyseData(resource = r, data = data)
-        ids, preds, algorithmName, stats = predictor(SEED=25, data=data, resource=r)
-        if ids is None: print 'Nothing worked for resource ', r
-        else:
-            submissionFile = 'resources/pred_%s_r=%d.csv' % (algorithmName, r)
-            create_test_submission(submissionFile, preds, ids)
-            saveScore(submissionFile, stats)
+    checkSeeds(56, 65, N = 20)
