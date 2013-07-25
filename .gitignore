@@ -1,3 +1,5 @@
-*.py
-data/*
+*.pyc
+submissions/*
+new/*
 *.txt
+*.csv
