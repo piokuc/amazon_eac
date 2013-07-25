@@ -25,6 +25,6 @@ def write(d, f):
     f.write('\n'.join(['id,ACTION'] + [str(k)+','+str(v) for k,v in items])) 
 
 if __name__ == '__main__':
-    files = ['data/always_granted.csv'] #readScores(t=0.9)
-    d = merge(['avg.csv'] + files)
-    write(d, open('always_granted_ensamble.csv', 'w'))
+    files = sys.argv[1:]
+    d = merge(files)
+    write(d, sys.stdout)

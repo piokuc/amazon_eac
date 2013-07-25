@@ -1,5 +1,5 @@
 from numpy import array, hstack
-from sklearn import metrics, cross_validation, linear_model
+from sklearn import metrics, cross_validation, linear_model, svm
 import sklearn.ensemble #.RandomForestClassifier
 from scipy import sparse
 from itertools import combinations
@@ -8,15 +8,15 @@ from scipy.optimize import fmin
 import numpy as np
 import pandas as pd
 
-import collections
+from collections import Counter
 import sys, traceback
 
 def log_exception(*s):
-    with open('resources/exceptions.txt','a') as f:
+    with open('exceptions.txt','a') as f:
         f.write('\n' + ' '.join(s) + '\n')
         traceback.print_exc(file=f)
 
-def group_data(data, degree=4, hash=hash):
+def group_data(data, degree=4, hash=hash, threshhold = 3):
     """ 
     numpy.array -> numpy.array
     
@@ -24,9 +24,25 @@ def group_data(data, degree=4, hash=hash):
     """
     new_data = []
     m,n = data.shape
+    count = Counter()
     for indicies in combinations(range(n), degree):
-        new_data.append([hash(tuple(v)) for v in data[:,indicies]])
-    return array(new_data).T
+        for v in data[:,indicies]:
+            h = hash(tuple(v))
+            count[h] += 1
+    for indicies in combinations(range(n), degree):
+        row = []
+        for v in data[:,indicies]:
+            h = hash(tuple(v))
+            cnt = count[h]
+            if cnt < threshhold:
+                row.append('rare')
+            else:
+                row.append(h)
+        new_data.append(row)
+        #new_data.append([hash(tuple(v)) for v in data[:,indicies]])
+    r = array(new_data).T
+    print 'group_data: =>', r.shape
+    return r
 
 def OneHotEncoder(data, keymap=None):
      """
@@ -64,48 +80,58 @@ def cv_loop(X, y, model, N, N_JOBS = 4, seed=25):
             cv = cross_validation.StratifiedShuffleSplit(y, random_state=seed, n_iter=N))
     return sum(scores) / N
     
-def loadData(train='train.csv', test='test.csv', resource=None):
+def loadData(train='train.csv', test='test.csv', degree = 4):
 
     print "Reading dataset..."
     train_data = pd.read_csv(train)
     test_data = pd.read_csv(test)
-    if resource is not None:
-        train_data = train_data[train_data.RESOURCE == resource]
-        test_data = test_data[test_data.RESOURCE == resource]
 
     ids = test_data.id
     all_data = np.vstack((train_data.ix[:,1:-1], test_data.ix[:,1:-1]))
-
     num_train = np.shape(train_data)[0]
     
-    # Transform data
     print "Transforming data..."
-    dp = group_data(all_data, degree=2) 
-    dt = group_data(all_data, degree=3)
-    #dc = group_data(all_data, degree=4)
-    #d5 = group_data(all_data, degree=5)
 
     y = array(train_data.ACTION)
+
     X = all_data[:num_train]
+    X_test = all_data[num_train:]
+
+    X_train_all = [ X ]
+    X_test_all = [ X_test ]
+    for i in range(2, degree + 1):
+        d = group_data(all_data, degree = i)
+        X_train_all.append(d[:num_train])
+        X_test_all.append(d[num_train:])
+
+    """
+    dp = group_data(all_data, degree=2) 
+    dt = group_data(all_data, degree=3)
+    dc = group_data(all_data, degree=4)
+    d5 = group_data(all_data, degree=5)
+
+
     X_2 = dp[:num_train]
     X_3 = dt[:num_train]
-    #X_4 = dc[:num_train]
-    #X_5 = d5[:num_train]
+    X_4 = dc[:num_train]
+    X_5 = d5[:num_train]
 
-    X_test = all_data[num_train:]
     X_test_2 = dp[num_train:]
     X_test_3 = dt[num_train:]
-    #X_test_4 = dc[num_train:]
-    #X_test_5 = d5[num_train:]
+    X_test_4 = dc[num_train:]
+    X_test_5 = d5[num_train:]
 
-    X_train_all = np.hstack((X, X_2, X_3)) #, X_4))#, X_5))
-    X_test_all = np.hstack((X_test, X_test_2, X_test_3)) #, X_test_4))#, X_test_5))
+    X_train_all = np.hstack((X, X_2, X_3, X_4, X_5))
+    X_test_all = np.hstack((X_test, X_test_2, X_test_3, X_test_4, X_test_5))
+    """
+    X_train_all = np.hstack(tuple(X_train_all))
+    X_test_all = np.hstack(tuple(X_test_all))
+
     num_features = X_train_all.shape[1]
     return X_train_all, y, X_test_all, X_test, num_features, num_train, ids
 
 
 def greedySelection(Xts=None, y=None, model=None, N=None, seed=None):
-    #return [0, 7, 8, 9, 10, 11, 20, 36, 37, 41, 42, 47, 51, 53, 63, 64, 67, 69, 71, 81, 85, 88]
 
     print "Performing greedy feature selection..."
     score_hist = []
@@ -150,7 +176,7 @@ def optimizeHyperparameter(model=None, Xts = None, y = None, N = None, features 
     bestScore = 1.0 - fopt
     return bestC, bestScore
 
-def saveScore(submissionFile, stats, logFile='resources/scores.txt'):
+def saveScore(submissionFile, stats, logFile='scores.txt'):
     with open(logFile, 'a') as f:
         stats = ' '.join(str(k)+'='+str(v) for k,v in stats.items())
         f.write('%s %s\n' % (submissionFile, stats))
@@ -194,17 +220,18 @@ def create_test_submission(filename, prediction, ids):
         f.write('\n'.join(content))
     print 'Saved'
 
-def everything(train='data/train.csv', test='data/test.csv', seed = 41, N = 10, data = None):
+def everything(train='data/train.csv', test='data/test.csv', seed = 41, N = 10, data = None, degree=4):
     ids, preds, algorithmName, stats = logistic_regression(seed=seed, data=data, N=N)
-    submissionFile = 'logistic_regression_N=%d_%s_4th.csv' % (N, seed)
+    submissionFile = 'lr_rare_events_degree=%d_N=%d_%s_.csv' % (degree, N, seed)
     create_test_submission(submissionFile, preds, ids)
     saveScore(submissionFile, stats, logFile='scores_optimized.txt')
 
-def checkSeeds(begin, end, train='data/train.csv', test='data/test.csv', N = 10):
+def checkSeeds(begin, end, train='data/train.csv', test='data/test.csv', degree=3, N = 10):
     data = loadData(train = train, test = test)
-    #for seed in range(43,55):
     for seed in range(begin,end):
-        everything(train = train, test = test, seed = seed, data = data, N = N)
+        everything(train = train, test = test, seed = seed, data = data, degree = degree, N = N)
 
 if __name__ == "__main__":
-    checkSeeds(56, 65, N = 20)
+    begin = int(sys.argv[1])
+    end = int(sys.argv[2])
+    checkSeeds(begin, end, degree=4, N = 10)
