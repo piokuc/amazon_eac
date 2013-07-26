@@ -214,11 +214,15 @@ def checkSeeds(begin, end, train='data/train.csv', test='data/test.csv', thresho
 if __name__ == "__main__":
     begin = int(sys.argv[1])
     end = int(sys.argv[2])
-    degree = 4
-    if len(sys.argv) == 4: degree = int(sys.argv[3])
-    threshold=3
-    if len(sys.argv) == 5: threshold = int(sys.argv[4])
 
-    print "check seeds from %(begin) to %(end), degree=%(degree),threshold=%(threshold)" % locals()
+    if len(sys.argv) >= 4:
+        degree = int(sys.argv[3])
+    else: degree = 4
+
+    if len(sys.argv) == 5:
+        threshold = int(sys.argv[4])
+    else: threshold=3
+
+    print "check seeds from %(begin)d to %(end)d, degree=%(degree)d,threshold=%(threshold)d" % locals()
 
     checkSeeds(begin, end, degree=degree, threshold=threshold, N = 10)
