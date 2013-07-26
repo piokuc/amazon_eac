@@ -202,7 +202,7 @@ def create_test_submission(filename, prediction, ids):
 
 def everything(train='data/train.csv', test='data/test.csv', seed = 41, N = 10, data = None, degree=4, threshold=3):
     ids, preds, algorithmName, stats = logistic_regression(seed=seed, data=data, N=N)
-    submissionFile = 'lr_rare_events_degree=%d_N=%d_%s_threshold=%d.csv' % (degree, N, seed, threshold)
+    submissionFile = 'lr_rare_events_degree=%d_N=%d_seed=%d_threshold=%d.csv' % (degree, N, seed, threshold)
     create_test_submission(submissionFile, preds, ids)
     saveScore(submissionFile, stats, logFile='scores_optimized.txt')
 
@@ -218,5 +218,7 @@ if __name__ == "__main__":
     if len(sys.argv) == 4: degree = int(sys.argv[3])
     threshold=3
     if len(sys.argv) == 5: threshold = int(sys.argv[4])
+
+    print "check seeds from %(begin) to %(end), degree=%(degree),threshold=%(threshold)" % locals()
 
     checkSeeds(begin, end, degree=degree, threshold=threshold, N = 10)
