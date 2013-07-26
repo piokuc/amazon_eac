@@ -80,7 +80,7 @@ def cv_loop(X, y, model, N, N_JOBS = 4, seed=25):
             cv = cross_validation.StratifiedShuffleSplit(y, random_state=seed, n_iter=N))
     return sum(scores) / N
     
-def loadData(train='train.csv', test='test.csv', degree = 4):
+def loadData(train='train.csv', test='test.csv', degree = 4, threshold = 3):
 
     print "Reading dataset..."
     train_data = pd.read_csv(train)
@@ -100,30 +100,10 @@ def loadData(train='train.csv', test='test.csv', degree = 4):
     X_train_all = [ X ]
     X_test_all = [ X_test ]
     for i in range(2, degree + 1):
-        d = group_data(all_data, degree = i)
+        d = group_data(all_data, degree = i, threshold = threshold)
         X_train_all.append(d[:num_train])
         X_test_all.append(d[num_train:])
 
-    """
-    dp = group_data(all_data, degree=2) 
-    dt = group_data(all_data, degree=3)
-    dc = group_data(all_data, degree=4)
-    d5 = group_data(all_data, degree=5)
-
-
-    X_2 = dp[:num_train]
-    X_3 = dt[:num_train]
-    X_4 = dc[:num_train]
-    X_5 = d5[:num_train]
-
-    X_test_2 = dp[num_train:]
-    X_test_3 = dt[num_train:]
-    X_test_4 = dc[num_train:]
-    X_test_5 = d5[num_train:]
-
-    X_train_all = np.hstack((X, X_2, X_3, X_4, X_5))
-    X_test_all = np.hstack((X_test, X_test_2, X_test_3, X_test_4, X_test_5))
-    """
     X_train_all = np.hstack(tuple(X_train_all))
     X_test_all = np.hstack(tuple(X_test_all))
 
@@ -220,14 +200,14 @@ def create_test_submission(filename, prediction, ids):
         f.write('\n'.join(content))
     print 'Saved'
 
-def everything(train='data/train.csv', test='data/test.csv', seed = 41, N = 10, data = None, degree=4):
+def everything(train='data/train.csv', test='data/test.csv', seed = 41, N = 10, data = None, degree=4, threshold=3):
     ids, preds, algorithmName, stats = logistic_regression(seed=seed, data=data, N=N)
-    submissionFile = 'lr_rare_events_degree=%d_N=%d_%s_.csv' % (degree, N, seed)
+    submissionFile = 'lr_rare_events_degree=%d_N=%d_%s_threshold=%d.csv' % (degree, N, seed, threshold)
     create_test_submission(submissionFile, preds, ids)
     saveScore(submissionFile, stats, logFile='scores_optimized.txt')
 
 def checkSeeds(begin, end, train='data/train.csv', test='data/test.csv', threshold=3, degree=3, N = 10):
-    data = loadData(train = train, test = test)
+    data = loadData(train = train, test = test, threshold = threshold)
     for seed in range(begin,end):
         everything(train = train, test = test, seed = seed, data = data, degree = degree, threshold = threshold, N = N)
 
