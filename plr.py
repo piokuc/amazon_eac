@@ -16,7 +16,7 @@ def log_exception(*s):
         f.write('\n' + ' '.join(s) + '\n')
         traceback.print_exc(file=f)
 
-def group_data(data, degree=4, hash=hash, threshhold = 3):
+def group_data(data, degree=4, hash=hash, threshold = 3):
     """ 
     numpy.array -> numpy.array
     
@@ -34,7 +34,7 @@ def group_data(data, degree=4, hash=hash, threshhold = 3):
         for v in data[:,indicies]:
             h = hash(tuple(v))
             cnt = count[h]
-            if cnt < threshhold:
+            if cnt < threshold:
                 row.append('rare')
             else:
                 row.append(h)
@@ -226,12 +226,17 @@ def everything(train='data/train.csv', test='data/test.csv', seed = 41, N = 10, 
     create_test_submission(submissionFile, preds, ids)
     saveScore(submissionFile, stats, logFile='scores_optimized.txt')
 
-def checkSeeds(begin, end, train='data/train.csv', test='data/test.csv', degree=3, N = 10):
+def checkSeeds(begin, end, train='data/train.csv', test='data/test.csv', threshold=3, degree=3, N = 10):
     data = loadData(train = train, test = test)
     for seed in range(begin,end):
-        everything(train = train, test = test, seed = seed, data = data, degree = degree, N = N)
+        everything(train = train, test = test, seed = seed, data = data, degree = degree, threshold = threshold, N = N)
 
 if __name__ == "__main__":
     begin = int(sys.argv[1])
     end = int(sys.argv[2])
-    checkSeeds(begin, end, degree=4, N = 10)
+    degree = 4
+    if len(sys.argv) == 4: degree = int(sys.argv[3])
+    threshold=3
+    if len(sys.argv) == 5: threshold = int(sys.argv[4])
+
+    checkSeeds(begin, end, degree=degree, threshold=threshold, N = 10)
