@@ -53,7 +53,7 @@ def group_data(data, degree=3, threshold = 3):
         ids = list(data.columns[list(indices)])
         g = data.groupby(ids).grouper
         group_ids = g.group_info[0]
-        print 'group_ids: len =', len(groupids), group_ids
+        print 'group_ids: len =', len(group_ids), group_ids
         new_data.append(group_ids)
     return array(new_data).T
 
