@@ -16,7 +16,18 @@ def log_exception(*s):
         f.write('\n' + ' '.join(s) + '\n')
         traceback.print_exc(file=f)
 
-def group_data(data, degree=4, hash=hash, threshold = 3):
+class Hash:
+    def __init__(self):
+        self.d = {}
+    def __call__(self, o):
+        o = tuple(o)
+        if not self.d.has_key(o):
+            self.d[o] = len(self.d) + 1
+        return self.d[o]
+
+myHash = Hash()
+
+def group_data(data, degree=4, hash=myHash, threshold = 3):
     """ 
     numpy.array -> numpy.array
     
