@@ -1,6 +1,5 @@
 from numpy import array, hstack
 from sklearn import metrics, cross_validation, linear_model, svm
-import sklearn.ensemble #.RandomForestClassifier
 from scipy import sparse
 from itertools import combinations
 from scipy.optimize import fmin
@@ -85,7 +84,7 @@ def OneHotEncoder(data, keymap=None):
 
 def cv_loop(X, y, model, N, N_JOBS = 4, seed=25):
     scores = cross_validation.cross_val_score(model, X, y,
-            scoring='roc_auc', #score_func = metrics.auc_score,
+            scoring='roc_auc', 
             pre_dispatch = N_JOBS,
             n_jobs = N_JOBS,
             cv = cross_validation.StratifiedShuffleSplit(y, random_state=seed, n_iter=N))
@@ -211,7 +210,7 @@ def create_test_submission(filename, prediction, ids):
         f.write('\n'.join(content))
     print 'Saved'
 
-def everything(train='data/train.csv', test='data/test.csv', seed = 41, N = 10, data = None, degree=4, threshold=3):
+def learn(train='data/train.csv', test='data/test.csv', seed = 41, N = 10, data = None, degree=4, threshold=3):
     ids, preds, algorithmName, stats = logistic_regression(seed=seed, data=data, N=N)
     submissionFile = 'lr_rare_events_degree=%d_N=%d_seed=%d_threshold=%d.csv' % (degree, N, seed, threshold)
     create_test_submission(submissionFile, preds, ids)
@@ -220,7 +219,7 @@ def everything(train='data/train.csv', test='data/test.csv', seed = 41, N = 10, 
 def checkSeeds(begin, end, train='data/train.csv', test='data/test.csv', threshold=3, degree=3, N = 10):
     data = loadData(train = train, test = test, threshold = threshold)
     for seed in range(begin,end):
-        everything(train = train, test = test, seed = seed, data = data, degree = degree, threshold = threshold, N = N)
+        learn(train = train, test = test, seed = seed, data = data, degree = degree, threshold = threshold, N = N)
 
 if __name__ == "__main__":
     begin = int(sys.argv[1])
